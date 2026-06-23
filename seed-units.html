@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trayer · Load Demo Units</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#f4f6f8;color:#1a2230;max-width:640px;margin:40px auto;padding:0 20px;line-height:1.5}
+h1{font-size:20px}
+button{font:inherit;font-weight:600;padding:12px 18px;border-radius:9px;border:0;cursor:pointer;margin:6px 8px 6px 0}
+.add{background:#3d4a5a;color:#fff}
+.clear{background:#fff;color:#d83a3a;border:1.5px solid #d83a3a}
+#log{margin-top:18px;font-family:'IBM Plex Mono',monospace;font-size:13px;white-space:pre-wrap;background:#fff;border:1px solid #dfe3e8;border-radius:9px;padding:14px;min-height:80px}
+.note{font-size:13px;color:#5a6573;background:#fdf3df;border:1px solid #e8a000;border-radius:8px;padding:10px 12px}
+</style>
+</head>
+<body>
+<h1>Trayer — Demo Units Loader</h1>
+<p class="note">Run this once to fill the dashboard with ~18 sample units (a mix of on-line, shipped, and failed/held). When you're ready for real production data, click <b>Clear demo units</b> to remove only the ones this tool added.</p>
+<div id="signin-box" style="background:#fff;border:1px solid #dfe3e8;border-radius:9px;padding:16px;margin-bottom:16px">
+  <div style="font-weight:600;margin-bottom:8px">Sign in first (manager account)</div>
+  <input id="email" type="email" placeholder="you@trayer.com" style="display:block;width:100%;max-width:320px;padding:10px;margin-bottom:8px;border:1px solid #dfe3e8;border-radius:7px">
+  <input id="pass" type="password" placeholder="password" style="display:block;width:100%;max-width:320px;padding:10px;margin-bottom:10px;border:1px solid #dfe3e8;border-radius:7px">
+  <button class="add" id="signin">Sign in</button>
+  <span id="who" style="margin-left:10px;font-size:13px;color:#1f9d57"></span>
+</div>
+<button class="add" id="load">＋ Load demo units</button>
+<button class="clear" id="clear">🗑 Clear demo units</button>
+<div id="log">Ready. Sign in above first.</div>
+
+<script type="module">
+import { db } from "./firebase.js";
+import { collection, doc, setDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+const auth=getAuth();
+
+const KEYS=["laser","weld1","bussing","weld2","leak","cabinet","paint","fa1","ftest","ship"];
+const N=KEYS.length;
+const log=(m)=>{document.getElementById("log").textContent+="\n"+m;};
+const setLog=(m)=>{document.getElementById("log").textContent=m;};
+
+function p(x){return String(x).padStart(2,"0");}
+// make a time stamp d days ago -> "MM/DD HH:MM"
+function stampTime(daysAgo){const d=new Date(Date.now()-daysAgo*86400000);return p(d.getMonth()+1)+"/"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());}
+function isoDaysAgo(daysAgo){return new Date(Date.now()-daysAgo*86400000).toISOString();}
+function isoMonthDaysAgo(daysAgo){const d=new Date(Date.now()-daysAgo*86400000);return d.getFullYear()+"-"+p(d.getMonth()+1);}
+
+const ops=["4471","4488","5012","5530","6101","6620","7044","7780"];
+function op(i){return ops[i%ops.length];}
+
+// Build a unit. mode: {type:"online"|"shipped"|"hold"|"scrap", at:stationIndex}
+function build(id, order, customer, model, mode, ageDays){
+  const stamps={};
+  let upto;
+  if(mode.type==="shipped") upto=N;          // all done incl ship
+  else upto=mode.at;                           // stations before 'at' are done
+  for(let i=0;i<upto;i++){
+    stamps[KEYS[i]]={op:op(i+id.length),time:stampTime(ageDays - i)};
+  }
+  const unit={id,order,customer,model,stamps, _demo:true};
+  if(mode.type==="online"){
+    stamps[KEYS[mode.at]]={op:"—",time:stampTime(1),active:true};
+  } else if(mode.type==="hold"){
+    stamps[KEYS[mode.at]]={op:op(id.length),time:stampTime(2),note:mode.note||"Flagged for rework",hold:true};
+    unit.events=[{type:"fail",month:isoMonthDaysAgo(2),station:mode.at,date:isoDaysAgo(2)}];
+  } else if(mode.type==="shipped"){
+    unit.events=[{type:"ship",month:isoMonthDaysAgo(ageDays),customer:customer,date:isoDaysAgo(ageDays)}];
+  } else if(mode.type==="scrap"){
+    unit.scrapped=true; unit.scrapStation=mode.at; unit.scrapReason=mode.note||"Unrepairable";
+    unit.scrapDate=isoDaysAgo(ageDays);
+    unit.events=[{type:"fail",month:isoMonthDaysAgo(ageDays),station:mode.at,date:isoDaysAgo(ageDays),scrap:true}];
+  }
+  return unit;
+}
+
+// ~18 units, realistic spread
+const UNITS=[
+  build("TRY-RMU-2406-0160","WO-48860","PG&E","Padmount RMU · 27kV · 4-Way",{type:"online",at:1},6),
+  build("TRY-RMU-2406-0161","WO-48861","SMUD","Padmount RMU · 27kV · 2-Way",{type:"online",at:0},3),
+  build("TRY-RMU-2406-0162","WO-48862","SCE","Padmount RMU · 35kV · 4-Way",{type:"online",at:2},8),
+  build("TRY-RMU-2406-0163","WO-48863","LADWP","Padmount RMU · 27kV · 3-Way",{type:"online",at:3},10),
+  build("TRY-RMU-2406-0164","WO-48864","Turlock ID","Padmount RMU · 15kV · 4-Way",{type:"online",at:4},12),
+  build("TRY-RMU-2406-0165","WO-48865","Imperial ID","Padmount RMU · 27kV · 4-Way",{type:"hold",at:4,note:"Weep at flange — failed pressure hold"},9),
+  build("TRY-RMU-2406-0166","WO-48866","Modesto ID","Padmount RMU · 27kV · 2-Way",{type:"online",at:5},14),
+  build("TRY-RMU-2406-0167","WO-48867","PG&E","Padmount RMU · 35kV · 4-Way",{type:"online",at:6},16),
+  build("TRY-RMU-2406-0168","WO-48868","SMUD","Padmount RMU · 27kV · 4-Way",{type:"hold",at:6,note:"Paint run — needs strip and recoat"},5),
+  build("TRY-RMU-2406-0169","WO-48869","SCE","Padmount RMU · 27kV · 3-Way",{type:"online",at:7},18),
+  build("TRY-RMU-2406-0170","WO-48870","Roseville Electric","Padmount RMU · 15kV · 4-Way",{type:"online",at:8},20),
+  build("TRY-RMU-2406-0171","WO-48871","Silicon Valley Power","Padmount RMU · 27kV · 4-Way",{type:"online",at:4},7),
+  build("TRY-RMU-2406-0172","WO-48872","PG&E","Padmount RMU · 27kV · 4-Way",{type:"shipped",at:N},22),
+  build("TRY-RMU-2406-0173","WO-48873","SMUD","Padmount RMU · 35kV · 2-Way",{type:"shipped",at:N},30),
+  build("TRY-RMU-2406-0174","WO-48874","LADWP","Padmount RMU · 27kV · 4-Way",{type:"shipped",at:N},45),
+  build("TRY-RMU-2406-0175","WO-48875","SCE","Padmount RMU · 27kV · 3-Way",{type:"shipped",at:N},60),
+  build("TRY-RMU-2406-0176","WO-48876","Turlock ID","Padmount RMU · 15kV · 4-Way",{type:"shipped",at:N},75),
+  build("TRY-RMU-2406-0177","WO-48877","Imperial ID","Padmount RMU · 27kV · 4-Way",{type:"scrap",at:8,note:"Tank cracked in final test — unrepairable"},11),
+];
+
+document.getElementById("signin").onclick=async()=>{
+  const email=(document.getElementById("email").value||"").trim();
+  const pass=document.getElementById("pass").value||"";
+  try{ await signInWithEmailAndPassword(auth,email,pass); }
+  catch(e){ setLog("Sign-in failed: "+e.message); }
+};
+onAuthStateChanged(auth,(u)=>{
+  if(u){ document.getElementById("who").textContent="Signed in as "+u.email; setLog("Signed in. Now click Load demo units."); }
+  else { document.getElementById("who").textContent=""; }
+});
+
+document.getElementById("load").onclick=async()=>{
+  if(!auth.currentUser){ setLog("Please sign in first (above)."); return; }
+  setLog("Loading "+UNITS.length+" demo units…");
+  let ok=0;
+  for(const u of UNITS){
+    try{ await setDoc(doc(db,"units",u.id), u); ok++; log("✔ "+u.id+"  ("+u.customer+")"); }
+    catch(e){ log("x "+u.id+" FAILED: "+e.message); }
+  }
+  log("\nDone. Loaded "+ok+"/"+UNITS.length+" units. You can close this page and open your dashboard.");
+};
+
+document.getElementById("clear").onclick=async()=>{
+  if(!auth.currentUser){ setLog("Please sign in first (above)."); return; }
+  if(!confirm("Remove ONLY the demo units this tool added? Your real units stay.")) return;
+  setLog("Scanning for demo units…");
+  let removed=0;
+  try{
+    const snap=await getDocs(collection(db,"units"));
+    const dels=[];
+    snap.forEach(d=>{ const v=d.data(); if(v && v._demo===true) dels.push(d.id); });
+    for(const id of dels){ await deleteDoc(doc(db,"units",id)); removed++; log("🗑 removed "+id); }
+    log("\nDone. Removed "+removed+" demo unit(s).");
+  }catch(e){ log("Error: "+e.message); }
+};
+</script>
+</body>
+</html>

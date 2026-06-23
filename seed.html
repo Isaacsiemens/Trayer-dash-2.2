@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Seed data</title></head>
+<body style="font-family:sans-serif;padding:40px">
+<h2>Loading units into Firestore…</h2>
+<pre id="log"></pre>
+<script type="module">
+import { db } from "./firebase.js";
+import { doc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+const log = (m) => { document.getElementById("log").textContent += m + "\n"; };
+
+const units = [
+  {id:"TRY-RMU-2406-0129",order:"WO-48817",customer:"LADWP",model:"Padmount RMU · 27kV · 4-Way",stamps:{weld1:{op:"R. Mendoza",time:"06/02 07:14"},bussing:{op:"T. Nguyen",time:"06/03 09:40"},weld2:{op:"R. Mendoza",time:"06/04 08:05"},leak:{op:"QC · D. Park",time:"06/05 11:22",note:"Hold 24h @ 7psi — pass"},cabinet:{op:"J. Silva",time:"06/06 13:10"},paint:{op:"A. Cruz",time:"06/09 10:55"},fa1:{op:"M. Reyes",time:"06/10 14:30"},ftest:{op:"QC · D. Park",time:"06/11 16:02",note:"Pass"},ship:{op:"L. Tran",time:"06/12 09:18",note:"Shipped — BOL 339102"}}},
+  {id:"TRY-RMU-2406-0133",order:"WO-48820",customer:"Turlock Irrigation",model:"Padmount RMU · 35kV · 4-Way",stamps:{weld1:{op:"R. Mendoza",time:"06/05 07:30"},bussing:{op:"T. Nguyen",time:"06/06 10:12"},weld2:{op:"R. Mendoza",time:"06/08 08:44"},leak:{op:"QC · D. Park",time:"06/09 12:01",note:"Pass"},cabinet:{op:"J. Silva",time:"06/10 13:50"},paint:{op:"A. Cruz",time:"06/12 11:20"},fa1:{op:"M. Reyes",time:"06/13 15:05",active:true}}},
+  {id:"TRY-RMU-2406-0138",order:"WO-48824",customer:"PG&E",model:"Padmount RMU · 15kV · 3-Way",stamps:{weld1:{op:"C. Flores",time:"06/06 07:08"},bussing:{op:"T. Nguyen",time:"06/07 09:33"},weld2:{op:"C. Flores",time:"06/08 08:20"},leak:{op:"QC · D. Park",time:"06/09 10:47",note:"Pass"},cabinet:{op:"J. Silva",time:"06/10 14:02"},paint:{op:"A. Cruz",time:"06/12 09:40"},fa1:{op:"M. Reyes",time:"06/13 13:15"},ftest:{op:"QC · D. Park",time:"06/13 16:40",active:true}}},
+  {id:"TRY-RMU-2406-0142",order:"WO-48829",customer:"SMUD",model:"Padmount RMU · 27kV · 4-Way",stamps:{weld1:{op:"R. Mendoza",time:"06/08 07:22"},bussing:{op:"T. Nguyen",time:"06/09 10:05"},weld2:{op:"R. Mendoza",time:"06/10 08:55"},leak:{op:"QC · D. Park",time:"06/11 11:30",note:"Pass"},cabinet:{op:"J. Silva",time:"06/12 13:40"},paint:{op:"A. Cruz",time:"06/13 10:10",active:true}}},
+  {id:"TRY-RMU-2406-0147",order:"WO-48831",customer:"Imperial Irrigation",model:"Padmount RMU · 15kV · 4-Way",stamps:{weld1:{op:"C. Flores",time:"06/09 07:40"},bussing:{op:"T. Nguyen",time:"06/10 09:50"},weld2:{op:"C. Flores",time:"06/11 08:30"},leak:{op:"QC · D. Park",time:"06/12 12:15",note:"FAIL — weep at flange, returned to Weld 2",hold:true}}},
+  {id:"TRY-RMU-2406-0151",order:"WO-48835",customer:"SCE",model:"Padmount RMU · 35kV · 2-Way",stamps:{weld1:{op:"R. Mendoza",time:"06/11 07:18"},bussing:{op:"T. Nguyen",time:"06/12 10:22"},weld2:{op:"R. Mendoza",time:"06/13 08:48",active:true}}},
+  {id:"TRY-RMU-2406-0155",order:"WO-48840",customer:"Modesto Irrigation",model:"Padmount RMU · 27kV · 3-Way",stamps:{weld1:{op:"C. Flores",time:"06/13 07:05"},bussing:{op:"T. Nguyen",time:"06/13 11:48",active:true}}}
+];
+
+for (const u of units) {
+  await setDoc(doc(db, "units", u.id), u);
+  log("Saved " + u.id);
+}
+log("\nDone! All units are in the database. You can close this tab.");
+</script>
+</body>
+</html>
